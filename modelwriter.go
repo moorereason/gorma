@@ -38,6 +38,7 @@ func NewModelWriter(filename string) (*ModelWriter, error) {
 	funcMap["plural"] = plural
 	funcMap["metaLookup"] = metaLookupTmpl
 	funcMap["columns"] = GetAttributeColumns
+	funcMap["timefuncs"] = MakeTimeFuncs
 
 	modelTmpl, err := template.New("models").Funcs(funcMap).Parse(modelTmpl)
 	if err != nil {

@@ -28,6 +28,7 @@ func (m {{$typeName}}) ToApp() *app.{{demodel $typeName}} {
 	copier.Copy(&target, &m)
 	return &target
 }
+{{ timefuncs $typeName }}
 {{ end }}
 {{ $tablename := metaLookup .Metadata "#tablename" }}
 {{ if ne $tablename "" }}
@@ -234,4 +235,13 @@ func Filter{{$typeName}}By{{$bt}}(parent int, list []{{$typeName}}) []{{$typeNam
 	return filtered
 }
 {{end}}{{end}}
+`
+
+const timefuncTmpl = `// Special copier function for "{{ .FieldName }}"
+func (m {{ .TypeName }}) {{ .FieldName }}() string {
+	if m.{{ .FieldName }}Time == nil {
+		return ""
+	}
+	return m.{{ .FieldName }}Time.Format(time.RFC3339)
+}
 `

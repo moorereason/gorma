@@ -3,6 +3,7 @@ package gorma
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,6 +15,10 @@ import (
 )
 
 const META_NAMESPACE = "github.com/bketelsen/gorma"
+
+// timeFields stores a list of Time fields found in the model.  We update this
+// in MakeModelDef and use it later to generate helper functions.
+var timeFields []string
 
 // titleCase converts a string to Title case.
 func titleCase(s string) string {
@@ -240,9 +245,26 @@ func includeTimeStamps(res *design.AttributeDefinition) string {
 	return ts
 }
 
+// isDateTime takes an attribute definition and returns whether there is a
+// Format("date-time") validation associated with it.
+func isDateTimeFormat(res *design.AttributeDefinition) bool {
+	if res.Type.Kind() == design.StringKind && len(res.Validations) > 0 {
+		for i := range res.Validations {
+			switch v := res.Validations[i].(type) {
+			case *design.FormatValidationDefinition:
+				if v.Format == "date-time" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // ModelDef is the main function to create a struct definition.
 func ModelDef(res *design.UserTypeDefinition) string {
 	var buffer bytes.Buffer
+	timeFields = make([]string, 0)
 	def := res.Definition()
 	t := def.Type
 	switch actual := t.(type) {
@@ -259,8 +281,21 @@ func ModelDef(res *design.UserTypeDefinition) string {
 		sort.Strings(keys)
 		for _, name := range keys {
 			codegen.WriteTabs(&buffer, 1)
-			typedef := codegen.GoTypeDef(actual[name], 1, true, true)
+
+			var typedef string
+			isTime := isDateTimeFormat(actual[name])
+			if isTime {
+				typedef = "*time.Time"
+			} else {
+				typedef = codegen.GoTypeDef(actual[name], 1, true, true)
+			}
+
 			fname := codegen.Goify(name, true)
+			if isTime {
+				timeFields = append(timeFields, fname)
+				fname += "Time"
+			}
+
 			var tags string
 			var omit string
 			var gorm, sql string
@@ -269,6 +304,8 @@ func ModelDef(res *design.UserTypeDefinition) string {
 			}
 			if val, ok := metaLookup(actual[name].Metadata, "#gormtag"); ok {
 				gorm = fmt.Sprintf(" gorm:\"%s\"", val)
+			} else if isTime {
+				gorm = fmt.Sprintf(" gorm:\"column:%s\"", strings.ToLower(name))
 			}
 			if val, ok := metaLookup(actual[name].Metadata, "#sqltag"); ok {
 				sql = fmt.Sprintf(" sql:\"%s\"", val)
@@ -333,6 +370,35 @@ func setupIDAttribute(obj design.Object, res *design.UserTypeDefinition) design.
 	}
 
 	return obj
+}
+
+func MakeTimeFuncs(typeName string) string {
+	if timeFields == nil || len(timeFields) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	type timefuncArgs struct {
+		FieldName, TypeName string
+	}
+
+	t, err := template.New("timefuncs").Parse(timefuncTmpl)
+	if err != nil {
+		panic(err)
+	}
+
+	sort.Strings(timeFields)
+	for i := range timeFields {
+		args := timefuncArgs{
+			FieldName: timeFields[i],
+			TypeName:  typeName,
+		}
+		err := t.Execute(&buf, args)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return buf.String()
 }
 
 // isASCIILower returns whether c is an ASCII lower-case letter.
