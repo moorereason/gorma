@@ -146,7 +146,6 @@ func (f *RelationalModelDefinition) LowerName() string {
 
 // IterateBuildSources runs an iterator function once per Model in the Store's model list.
 func (f *RelationalModelDefinition) IterateBuildSources(it BuildSourceIterator) error {
-
 	for _, bs := range f.BuildSources {
 		if err := it(bs); err != nil {
 			return err
@@ -304,8 +303,7 @@ func (f *RelationalModelDefinition) PopulateFromModeledType() {
 }
 
 func addAttributeToModel(name string, att *design.AttributeDefinition, m *RelationalModelDefinition) {
-	var parent *design.AttributeDefinition
-	parent = m.AttributeDefinition
+	parent := m.AttributeDefinition
 	if parent != nil {
 		if parent.Type == nil {
 			parent.Type = design.Object{}
@@ -317,7 +315,6 @@ func addAttributeToModel(name string, att *design.AttributeDefinition, m *Relati
 
 		parent.Type.(design.Object)[name] = att
 	}
-
 }
 
 // copied from Goa
